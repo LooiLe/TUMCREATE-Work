@@ -1,0 +1,5 @@
+make -C examples/basic build/test_binary44
+./examples/basic/build/test_binary44
+
+make
+./build/mldsa_app
