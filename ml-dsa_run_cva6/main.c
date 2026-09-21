@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
+
 #if !defined(__riscv)
 #include <stdio.h>
 #endif

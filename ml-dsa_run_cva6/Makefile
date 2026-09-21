@@ -11,7 +11,7 @@ OBJDUMP       := $(CROSS_COMPILE)objdump
 ifeq ($(strip $(CROSS_COMPILE)),)
     ARCH_FLAGS ?=
 else
-    ARCH_FLAGS ?= -march=rv64gc -mabi=lp64d -mcmodel=medany
+    ARCH_FLAGS ?= -march=rv64imac -mabi=lp64 -mcmodel=medany
 endif
 
 # Path to wolfSSL directory (override with: make WOLFSSL_ROOT=/path/to/wolfssl)
@@ -28,7 +28,9 @@ CFLAGS := \
 	-std=c99 \
 	-DWOLFSSL_USER_SETTINGS \
 	-I. \
-	-I$(WOLFSSL_ROOT)
+	-I$(WOLFSSL_ROOT) \
+	-I$(WOLFSSL_ROOT)/wolfcrypt \
+	-I/usr/include/newlib
 
 # Benchmark parameters (override on command line if desired)
 # e.g., make BENCH_PAYLOAD_SIZE=1024 ITERATIONS=100 CPU_FREQ_MHZ=50.0

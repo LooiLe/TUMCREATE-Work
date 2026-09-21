@@ -48,6 +48,8 @@
 #define NO_AES
 #define NO_HMAC
 #define NO_ASN
+#define NO_ASN_TIME
+#define USER_TIME
 #define NO_PWDBASED
 #define NO_CODING
 #define NO_CERTS
