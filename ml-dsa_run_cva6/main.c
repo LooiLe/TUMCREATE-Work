@@ -1,6 +1,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#if !defined(__riscv)
+#include <stdio.h>
+#endif
 
 /* =========================================================================
  * wolfCrypt Baremetal Headers
@@ -336,6 +339,17 @@ int main(void)
 
     wolfCrypt_Init();
 
+#if !defined(__riscv)
+    printf("\n=========================================================================================================\n");
+    printf("               HOST (x86_64) HASH ALGORITHM BENCHMARK (wolfCrypt)\n");
+    printf("=========================================================================================================\n");
+    printf(" Payload: %d bytes  |  Iterations: %d\n", BENCH_PAYLOAD_SIZE, ITERATIONS);
+    printf("---------------------------------------------------------------------------------------------------------\n");
+    printf("%-14s | %6s | %11s | %11s | %9s\n",
+           "Algorithm", "Digest", "Min Cycles", "Med Cycles", "Cyc/Byte");
+    printf("---------------+--------+-------------+-------------+-----------\n");
+#endif
+
     size_t total_algos = sizeof(HASH_ALGOS) / sizeof(HASH_ALGOS[0]);
 
     for (size_t a = 0; a < total_algos; a++) {
@@ -377,12 +391,23 @@ int main(void)
             g_results[a].instructions = med_ins;
             g_results[a].cyc_per_byte_x100 = (med_cyc * 100) / BENCH_PAYLOAD_SIZE;
         }
+
+#if !defined(__riscv)
+        double cyc_per_byte = (double)med_cyc / (double)BENCH_PAYLOAD_SIZE;
+        printf("%-14s | %4zu B | %11llu | %11llu | %9.2f\n",
+               desc->name,
+               desc->digest_len,
+               (unsigned long long)min_cyc,
+               (unsigned long long)med_cyc,
+               cyc_per_byte);
+#endif
     }
 
     g_results_count = (uint32_t)total_algos;
 
     wolfCrypt_Cleanup();
 
+#if defined(__riscv)
     /* Signal completion to JTAG / GDB */
     g_benchmark_done = 1;
 
@@ -390,6 +415,9 @@ int main(void)
     while (1) {
         __asm__ volatile ("nop");
     }
+#else
+    printf("=========================================================================================================\n\n");
+#endif
 
     return 0;
 }

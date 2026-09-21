@@ -12,5 +12,8 @@ make clean && make BENCH_PAYLOAD_SIZE=64
 # 3. Build Experiment 3 (16 KB firmware binary)
 make clean && make BENCH_PAYLOAD_SIZE=16384 ITERATIONS=20
 
-# 4. Host Simulation / Verification (Run directly on PC / WSL)
-make clean && make CROSS_COMPILE= ARCH_FLAGS= && ./build/hash_bench.elf
+# 4. Host Simulation / Verification (Run directly on PC / WSL x86)
+make run_host
+# Or manually:
+# make clean && make CROSS_COMPILE= && ./build/hash_bench.elf
+

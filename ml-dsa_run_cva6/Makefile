@@ -8,9 +8,11 @@ CC            := $(CROSS_COMPILE)gcc
 OBJCOPY       := $(CROSS_COMPILE)objcopy
 OBJDUMP       := $(CROSS_COMPILE)objdump
 
-# Target RISC-V Architecture for CVA6 (default RV64GC with double-precision float)
-# Change to -march=rv64imac -mabi=lp64 if your CVA6 build lacks hardware FPU
-ARCH_FLAGS ?= -march=rv64gc -mabi=lp64d -mcmodel=medany
+ifeq ($(strip $(CROSS_COMPILE)),)
+    ARCH_FLAGS ?=
+else
+    ARCH_FLAGS ?= -march=rv64gc -mabi=lp64d -mcmodel=medany
+endif
 
 # Path to wolfSSL directory (override with: make WOLFSSL_ROOT=/path/to/wolfssl)
 WOLFSSL_ROOT ?= ./wolfssl
@@ -53,12 +55,16 @@ WOLFCRYPT_SRCS := \
 	$(WOLFSSL_ROOT)/wolfcrypt/src/sha512.c \
 	$(WOLFSSL_ROOT)/wolfcrypt/src/sha3.c
 
-# Optional BSP / startup sources (if provided by your baremetal CVA6 environment)
-# BSP_SRCS := crt0.S syscalls.c
-BSP_SRCS := startup.s baremetal_lib.c
-
-# Linker flags (add your custom linker script if needed: -Tlink.ld)
-LDFLAGS := -T link.ld -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-Map=$(TARGET).map
+ifeq ($(strip $(CROSS_COMPILE)),)
+    # Host build (x86_64)
+    ARCH_FLAGS :=
+    BSP_SRCS   :=
+    LDFLAGS    :=
+else
+    # CVA6 Baremetal RISC-V build
+    BSP_SRCS   := startup.s baremetal_lib.c
+    LDFLAGS    := -T link.ld -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-Map=$(TARGET).map
+endif
 
 BUILD_DIR := build
 TARGET    := $(BUILD_DIR)/hash_bench.elf
@@ -67,9 +73,13 @@ BIN       := $(BUILD_DIR)/hash_bench.bin
 
 ALL_SRCS := $(APP_SRCS) $(WOLFCRYPT_SRCS) $(BSP_SRCS)
 
-.PHONY: all elf bin dump clean help
+.PHONY: all elf bin dump clean help host run_host
 
+ifeq ($(strip $(CROSS_COMPILE)),)
+all: elf
+else
 all: elf dump bin
+endif
 
 elf: $(TARGET)
 
@@ -86,6 +96,12 @@ dump: $(DISASM)
 
 $(DISASM): $(TARGET)
 	$(OBJDUMP) -D -S $< > $@
+
+host:
+	$(MAKE) CROSS_COMPILE=
+
+run_host: host
+	./$(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR)
