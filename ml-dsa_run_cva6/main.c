@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -290,13 +289,34 @@ static const HashAlgoDesc HASH_ALGOS[] = {
 #endif
 };
 
-/* Comparison helper for sorting cycle measurements */
-static int compare_u64(const void *a, const void *b)
+/* Freestanding insertion sort (no stdlib qsort dependency for baremetal) */
+static void sort_u64(uint64_t *arr, size_t n)
 {
-    uint64_t v1 = *(const uint64_t *)a;
-    uint64_t v2 = *(const uint64_t *)b;
-    return (v1 > v2) - (v1 < v2);
+    for (size_t i = 1; i < n; i++) {
+        uint64_t key = arr[i];
+        int j = (int)i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
 }
+
+/* Global benchmark results for JTAG / GDB inspection */
+typedef struct {
+    const char *name;
+    uint64_t digest_len;
+    uint64_t min_cycles;
+    uint64_t med_cycles;
+    uint64_t instructions;
+    uint64_t cyc_per_byte_x100; /* Cycles/Byte * 100 (e.g. 1542 = 15.42 CPB) */
+} BenchmarkResult;
+
+#define MAX_BENCHMARK_ALGOS 16
+volatile BenchmarkResult g_results[MAX_BENCHMARK_ALGOS];
+volatile uint32_t g_results_count = 0;
+volatile uint32_t g_benchmark_done = 0;
 
 /* Static buffers to avoid overflowing small baremetal stack frames */
 static uint8_t message[BENCH_PAYLOAD_SIZE];
@@ -315,17 +335,6 @@ int main(void)
     }
 
     wolfCrypt_Init();
-
-    printf("\n");
-    printf("=========================================================================================================\n");
-    printf("               CVA6 BAREMETAL HASH ALGORITHM BENCHMARK (wolfCrypt)\n");
-    printf("=========================================================================================================\n");
-    printf(" Payload: %d bytes  |  Iterations: %d  |  Core Freq: %.1f MHz\n",
-           BENCH_PAYLOAD_SIZE, ITERATIONS, CPU_FREQ_MHZ);
-    printf("---------------------------------------------------------------------------------------------------------\n");
-    printf("%-14s | %6s | %11s | %11s | %9s | %12s | %5s | %9s | %10s\n",
-           "Algorithm", "Digest", "Min Cycles", "Med Cycles", "Cyc/Byte", "Instructions", "IPC", "Time (us)", "Throughput");
-    printf("---------------+--------+-------------+-------------+-----------+--------------+-------+-----------+-------------\n");
 
     size_t total_algos = sizeof(HASH_ALGOS) / sizeof(HASH_ALGOS[0]);
 
@@ -351,37 +360,36 @@ int main(void)
             inst_samples[i] = ins1 - ins0;
         }
 
-        /* Sort samples to find median, min, p99 */
-        qsort(cycle_samples, ITERATIONS, sizeof(uint64_t), compare_u64);
-        qsort(inst_samples, ITERATIONS, sizeof(uint64_t), compare_u64);
+        /* Sort samples to find median and min */
+        sort_u64(cycle_samples, ITERATIONS);
+        sort_u64(inst_samples, ITERATIONS);
 
         uint64_t min_cyc = cycle_samples[0];
         uint64_t med_cyc = cycle_samples[ITERATIONS / 2];
         uint64_t med_ins = inst_samples[ITERATIONS / 2];
 
-        double cyc_per_byte = (double)med_cyc / (double)BENCH_PAYLOAD_SIZE;
-        double ipc = (med_cyc > 0) ? ((double)med_ins / (double)med_cyc) : 0.0;
-        double time_us = (double)med_cyc / CPU_FREQ_MHZ;
-        double throughput_mbps = (time_us > 0.0)
-            ? (((double)BENCH_PAYLOAD_SIZE / (time_us * 1e-6)) / (1024.0 * 1024.0))
-            : 0.0;
-
-        printf("%-14s | %4zu B | %11llu | %11llu | %9.2f | %12llu | %5.2f | %9.1f | %7.2f MB/s\n",
-               desc->name,
-               desc->digest_len,
-               (unsigned long long)min_cyc,
-               (unsigned long long)med_cyc,
-               cyc_per_byte,
-               (unsigned long long)med_ins,
-               ipc,
-               time_us,
-               throughput_mbps);
+        /* Store into global array for JTAG / GDB inspection */
+        if (a < MAX_BENCHMARK_ALGOS) {
+            g_results[a].name = desc->name;
+            g_results[a].digest_len = desc->digest_len;
+            g_results[a].min_cycles = min_cyc;
+            g_results[a].med_cycles = med_cyc;
+            g_results[a].instructions = med_ins;
+            g_results[a].cyc_per_byte_x100 = (med_cyc * 100) / BENCH_PAYLOAD_SIZE;
+        }
     }
 
-    printf("=========================================================================================================\n");
-    printf(" Note: Cycles/Byte (CPB) is frequency-independent. Lower is faster.\n");
-    printf("       Time and Throughput calculated assuming %.1f MHz clock.\n\n", CPU_FREQ_MHZ);
+    g_results_count = (uint32_t)total_algos;
 
     wolfCrypt_Cleanup();
+
+    /* Signal completion to JTAG / GDB */
+    g_benchmark_done = 1;
+
+    /* Halt in infinite loop */
+    while (1) {
+        __asm__ volatile ("nop");
+    }
+
     return 0;
 }
