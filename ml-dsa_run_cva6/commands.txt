@@ -1,2 +1,5 @@
 # Example: customize payload size, iterations, and core frequency (e.g. 100 MHz)
 make WOLFSSL_ROOT=/path/to/wolfssl BENCH_PAYLOAD_SIZE=4096 ITERATIONS=100 CPU_FREQ_MHZ=100.0
+
+rm -rf wolfssl
+git clone https://github.com/wolfSSL/wolfssl.git wolfssl
