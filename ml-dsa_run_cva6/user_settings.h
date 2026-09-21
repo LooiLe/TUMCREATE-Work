@@ -4,6 +4,8 @@
 /* =========================================================================
  * Baremetal / Embedded Target Configuration for RISC-V CVA6
  * ========================================================================= */
+#define WOLFCRYPT_ONLY
+#define NO_TLS
 #define SINGLE_THREADED
 #define NO_FILESYSTEM
 #define WOLFSSL_NO_SOCK
@@ -12,9 +14,11 @@
 #define WOLFSSL_USER_IO
 #define NO_MAIN_FUNCT
 
-/* 64-bit RISC-V architecture */
+/* Target architecture settings */
 #define SIZEOF_LONG_LONG 8
+#if defined(__riscv)
 #define WOLFSSL_RISCV
+#endif
 
 /* =========================================================================
  * Hash Algorithms to Benchmark

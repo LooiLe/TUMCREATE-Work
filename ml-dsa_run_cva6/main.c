@@ -6,7 +6,6 @@
 /* =========================================================================
  * wolfCrypt Baremetal Headers
  * ========================================================================= */
-#include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/wolfcrypt/sha.h>

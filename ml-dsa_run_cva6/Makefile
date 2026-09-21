@@ -43,6 +43,8 @@ APP_SRCS := main.c
 
 # wolfCrypt source files required for SHA-2, SHA-3, and SHAKE
 WOLFCRYPT_SRCS := \
+	$(WOLFSSL_ROOT)/wolfcrypt/src/wc_port.c \
+	$(WOLFSSL_ROOT)/wolfcrypt/src/memory.c \
 	$(WOLFSSL_ROOT)/wolfcrypt/src/sha.c \
 	$(WOLFSSL_ROOT)/wolfcrypt/src/sha256.c \
 	$(WOLFSSL_ROOT)/wolfcrypt/src/sha512.c \
@@ -89,5 +91,5 @@ help:
 	@echo "Usage:"
 	@echo "  make                      Build hash_bench for CVA6 using default settings"
 	@echo "  make WOLFSSL_ROOT=<path>  Specify path to wolfssl repository"
-	@echo "  make CC=gcc ARCH_FLAGS=   Build for host system (x86_64 testing)"
+	@echo "  make CROSS_COMPILE= ARCH_FLAGS=   Build for host system (x86_64 testing)"
 	@echo "  make clean                Clean build artifacts"
