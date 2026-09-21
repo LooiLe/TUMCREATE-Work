@@ -4,9 +4,9 @@
 
 # Toolchain configuration (override with: make CROSS_COMPILE=riscv64-unknown-elf-)
 CROSS_COMPILE ?= riscv64-unknown-elf-
-CC            ?= $(CROSS_COMPILE)gcc
-OBJCOPY       ?= $(CROSS_COMPILE)objcopy
-OBJDUMP       ?= $(CROSS_COMPILE)objdump
+CC            := $(CROSS_COMPILE)gcc
+OBJCOPY       := $(CROSS_COMPILE)objcopy
+OBJDUMP       := $(CROSS_COMPILE)objdump
 
 # Target RISC-V Architecture for CVA6 (default RV64GC with double-precision float)
 # Change to -march=rv64imac -mabi=lp64 if your CVA6 build lacks hardware FPU
@@ -34,9 +34,12 @@ BENCH_PAYLOAD_SIZE ?= 4096
 ITERATIONS         ?= 50
 CPU_FREQ_MHZ       ?= 50.0
 
+USE_MCYCLE         ?= 1
+
 CFLAGS += -DBENCH_PAYLOAD_SIZE=$(BENCH_PAYLOAD_SIZE) \
           -DITERATIONS=$(ITERATIONS) \
-          -DCPU_FREQ_MHZ=$(CPU_FREQ_MHZ)
+          -DCPU_FREQ_MHZ=$(CPU_FREQ_MHZ) \
+          -DUSE_MCYCLE=$(USE_MCYCLE)
 
 # Source files
 APP_SRCS := main.c
@@ -52,10 +55,10 @@ WOLFCRYPT_SRCS := \
 
 # Optional BSP / startup sources (if provided by your baremetal CVA6 environment)
 # BSP_SRCS := crt0.S syscalls.c
-BSP_SRCS ?=
+BSP_SRCS := startup.s baremetal_lib.c
 
 # Linker flags (add your custom linker script if needed: -Tlink.ld)
-LDFLAGS ?=
+LDFLAGS := -T link.ld -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-Map=$(TARGET).map
 
 BUILD_DIR := build
 TARGET    := $(BUILD_DIR)/hash_bench.elf
