@@ -70,3 +70,13 @@ run: $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+verify_payload: $(MLD_SOURCE) $(RNG_SOURCE) verify_payload.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMLD_CONFIG_PARAMETER_SET=65 $(INC) $^ -o $(BUILD_DIR)/verify_payload -lcrypto
+	./$(BUILD_DIR)/verify_payload
+
+sign_payload_native: $(MLD_SOURCE) $(RNG_SOURCE) sign_payload_native.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMLD_CONFIG_PARAMETER_SET=65 $(INC) $^ -o $(BUILD_DIR)/sign_payload_native -lcrypto
+	./$(BUILD_DIR)/sign_payload_native

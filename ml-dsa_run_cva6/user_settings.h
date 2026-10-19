@@ -18,6 +18,7 @@
 #define SIZEOF_LONG_LONG 8
 #if defined(__riscv)
 #define WOLFSSL_RISCV
+#define WOLFSSL_RISCV_ASM
 #endif
 
 /* =========================================================================

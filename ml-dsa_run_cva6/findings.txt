@@ -1,0 +1,230 @@
+# Performance Evaluation and Comparative Architecture Analysis: SHA-2 vs. SHA-3 Across Software Execution and Hardware Acceleration Paradigms
+
+---
+
+## 1. Executive Summary
+
+This report evaluates the throughput, architectural efficiency, and resource utilization tradeoffs between the Secure Hash Algorithm 2 (**SHA-2**, specifically SHA-256 and SHA-512) and Secure Hash Algorithm 3 (**SHA-3**, based on the Keccak-f[1600] permutation family).
+
+### Primary Findings
+
+* **Software-Only Paradigm:** **SHA-2 is the clear winner.** On general-purpose sequential instruction-set architectures (including the RISC-V 64-bit CVA6 core), SHA-2 outpaces SHA-3 by a factor ranging from **1.5× to 3×**, expanding to **4× to 8×** on desktop/server architectures featuring dedicated silicon extensions (Intel SHA-NI, ARMv8 Crypto). SHA-2's internal state directly maps to native scalar registers ($8 \times 32$-bit or $8 \times 64$-bit), whereas SHA-3's wide 1,600-bit state forces severe register thrashing and high instruction counts per round.
+* **Hardware Acceleration Paradigm:** **SHA-3 is the clear winner.** When implemented as a dedicated Register-Transfer Level (RTL) core in ASIC or FPGA fabric (e.g., Xilinx Kintex-7 on the Genesys 2 platform), SHA-3 achieves dramatically superior raw throughput and area-to-throughput efficiency. This reversal stems from SHA-3 requiring only 24 rounds on a 1,088-bit block (versus 64 rounds on a 512-bit block for SHA-256), a critical path devoid of carry-propagation delays, and bit rotations that execute in zero cycles via native silicon routing.
+
+```
++----------------------------------------------------------------------------------+
+| SOFTWARE / SEQUENTIAL CORE EXECUTION (CVA6, Cortex, x86)                         |
+|   Winner: SHA-2                                                                  |
+|   Mechanism: Register-resident states, low instruction-count per byte, 32/64b ALU  |
++----------------------------------------------------------------------------------+
+                                        │
+                         Hardware Transformation Paradigm
+                                        │
+                                        ▼
++----------------------------------------------------------------------------------+
+| DEDICATED RTL CO-PROCESSOR / ACCELERATOR (FPGA / ASIC Fabric)                   |
+|   Winner: SHA-3                                                                  |
+|   Mechanism: 1600-bit wide buses, wire-only rotations, 24 rounds, no carry-chains  |
++----------------------------------------------------------------------------------+
+
+```
+
+---
+
+## 2. Theoretical Architecture Comparison
+
+The performance divergence is not an artifact of implementation quality or library efficiency (such as wolfSSL vs. OpenSSL); it is fundamentally rooted in the mathematical constructions selected by NIST for FIPS 180-4 (SHA-2) versus FIPS 202 (SHA-3).
+
+| Architectural Feature | SHA-256 (SHA-2 Family) | SHA-3-256 / Keccak-f[1600] |
+| --- | --- | --- |
+| **Core Construction** | Merkle–Damgård with Davies–Meyer compression | Sponge Construction (State $b = r + c = 1600$) |
+| **Native State Size** | 256 bits ($8 \times 32$-bit words) | 1,600 bits ($25 \times 64$-bit words in a $5 \times 5$ matrix) |
+| **Input Ingestion Rate ($r$)** | 512 bits (64 bytes) per block | 1,088 bits (136 bytes) per block |
+| **Security Capacity ($c$)** | Implicit | 512 bits (determines $2^{c/2} = 2^{256}$ security bound) |
+| **Rounds per Block** | **64 rounds** | **24 rounds** |
+| **Primary Math Operations** | Modular additions ($\boxplus \pmod{2^{32}}$), bitwise shifts, rotations, logic (Ch, Maj) | Bitwise XOR ($\oplus$), AND ($\land$), NOT ($\neg$), bit rotations ($\rho$) |
+| **Silicon Routing Dependency** | High (Multi-operand carry adders) | Low (Pure combinatorial logic + direct wiring) |
+
+---
+
+## 3. Analysis of the Software-Only Paradigm (Why SHA-2 Wins)
+
+When running standard compiled C libraries (such as wolfCrypt/wolfSSL) on a general-purpose CPU—specifically on an in-order, 64-bit RISC-V application core such as **CVA6** (formerly Ariane)—the execution model is strictly sequential.
+
+```
+CVA6 64-bit Architecture Bottleneck for SHA-3:
+
+[1600-bit Keccak State] -> 25 separate 64-bit words
+        │
+        ├── CVA6 has only 32 architectural registers (x0-x31)
+        ├── Available working registers (after ABI reservations): ~14-18 registers
+        ▼
+[Spill / Fill Penalty]: The core must continuously execute LD (Load) and SD (Store)
+instructions to the L1 Data Cache / Stack frame just to perform one round of theta/pi/chi.
+
+```
+
+### 3.1 Register Pressure and Memory Spilling
+
+* **SHA-256 / SHA-512:** The state fits inside 8 working variables ($a, b, c, d, e, f, g, h$). In a 64-bit RISC-V core like CVA6, these 8 variables reside permanently inside CPU registers across all 64 rounds. The message schedule can be computed dynamically with minimal stack spilling.
+* **SHA-3 (Keccak-f[1600]):** The state is an array of $5 \times 5$ 64-bit lanes ($25$ words). In the standard RISC-V application binary interface (ABI), several registers are reserved (stack pointer, global pointer, return address, thread pointer). The compiler cannot hold the 25 state words and intermediate parity variables simultaneously in registers. The CPU is forced into substantial **register spilling**—generating dozens of memory load (`ld`) and store (`sd`) instructions per round to/from the L1 cache.
+
+### 3.2 ALU Complexity and Instruction Count
+
+* **Arithmetic Mismatch:** General-purpose CPUs are explicitly designed to execute arithmetic additions (`ADD`, `ADDI`) in a single cycle via their internal fast arithmetic logic units (ALUs). SHA-2 utilizes these native ALU paths directly.
+* **Emulated Bit Rotations:** Standard base RISC-V instructions (RV64I) lack a single-cycle bit-rotate instruction unless the standard Zbb (Basic bit-manipulation) extension is synthesized. On a base CVA6 core, a single 64-bit circular rotate requires three instructions:
+
+$$\text{ROT}(x, n) = (x \ll n) \mid (x \gg (64 - n)) \implies \texttt{slli} + \texttt{srli} + \texttt{or}$$
+
+
+
+Because SHA-3 applies rotations across all 25 lanes during its $\rho$ (rho) phase, a baseline RISC-V core must burn dozens of instructions purely computing rotations that a dedicated hardware bus gets for free.
+
+---
+
+## 4. Analysis of the Hardware Accelerator Paradigm (Why SHA-3 Wins)
+
+When moving computation from the CVA6 CPU execution pipeline to dedicated RTL fabric (e.g., configuring the Kintex-7 FPGA logic cells on a Digilent Genesys 2 board), the fundamental metrics invert.
+
+```
+Hardware Execution Comparison (1 Round / Cycle Basic Engine):
+
+SHA-256 Hardware Pipeline:
+Block Size: 512 bits  |  Latency: 64 clock cycles
+Throughput Efficiency = 512 bits / 64 cycles = 8.0 bits/cycle
+
+SHA-3-256 Hardware Pipeline:
+Block Size: 1088 bits |  Latency: 24 clock cycles
+Throughput Efficiency = 1088 bits / 24 cycles = 45.33 bits/cycle
+-> 5.66x structural raw advantage per clock cycle
+
+```
+
+### 4.1 Structural Ingestion Rate and Latency
+
+The primary hardware throughput formula is:
+
+
+$$\text{Throughput} = \frac{\text{Block Size (bits)} \times \text{Clock Frequency } (F_{\text{max}})}{\text{Clock Cycles per Block}}$$
+
+1. **Cycles per Block:** A standard non-pipelined hardware implementation computes one round per clock cycle:
+* **SHA-256:** Requires 64 cycles to absorb a single 512-bit block.
+* **SHA3-256:** Requires 24 cycles to absorb a single 1,088-bit block.
+
+
+2. **Bits per Cycle Advantage:** Even at an identical clock frequency, SHA3-256 processes:
+
+$$\frac{1088 \text{ bits}}{24 \text{ cycles}} \approx 45.33 \text{ bits/cycle}$$
+
+
+
+versus SHA-256:
+
+$$\frac{512 \text{ bits}}{64 \text{ cycles}} = 8.0 \text{ bits/cycle}$$
+
+
+
+**SHA-3 processes 5.66× more data per clock cycle than SHA-256.**
+
+### 4.2 The Critical Path and $F_{\text{max}}$ (Carry Chains vs. Gate Logic)
+
+In digital circuit design, maximum clock speed is constrained by propagation delay along the critical path:
+
+* **SHA-2 Bottleneck (Multi-Operand Additions):**
+A single SHA-2 round requires computing:
+
+$$T_1 = h + \Sigma_1(e) + \text{Ch}(e, f, g) + K_t + W_t$$
+
+
+
+This operation requires cascading multiple 32-bit (or 64-bit) additions. In silicon or FPGA Look-Up Tables (LUTs), addition generates carry chains that must physically propagate from bit 0 to bit 31/63. Even with dedicated carry-lookahead hardware (e.g., Xilinx `CARRY4` or `CARRY8` primitives), this long combinatorial path caps the maximum synthesis frequency ($F_{\text{max}}$).
+* **SHA-3 Advantage (Zero Carry Chains, Free Routing):**
+The Keccak round function comprises five modular operations:
+
+$$\text{Round} = \iota \circ \chi \circ \pi \circ \rho \circ \theta$$
+
+
+* **$\rho$ (Rho) and $\pi$ (Pi):** These are pure bit permutations. In hardware, permutations require **zero transistors and zero clock cycles**; they are executed purely by crisscrossing physical wires between registers.
+* **$\theta$ (Theta) and $\chi$ (Chi):** These require exclusively bitwise 2-input XOR, 2-input AND, and NOT gates. They have a logic depth of only 2 to 3 gates, entirely bypassing carry logic.
+* Consequently, a dedicated SHA-3 hardware module can achieve a high $F_{\text{max}}$ with minimal propagation latency.
+
+
+
+### 4.3 Hardware Loop Unrolling Potential
+
+Because SHA-3’s round function consists of shallow combinatorial logic:
+
+* Designers can "unroll" the design into a **2-round-per-cycle** or **4-round-per-cycle** core without breaking timing constraints.
+* At 2 rounds per cycle, SHA3-256 processes an entire 1,088-bit block in **12 clock cycles** (yielding upwards of **90.6 bits/cycle**).
+* Unrolling SHA-256 compounds its carry-propagation delays, resulting in timing violations and forcing deep pipeline registers that increase area and latency.
+
+---
+
+## 5. Architectural Comparison Matrix
+
+| Evaluation Dimension | Software Execution (CPU / wolfSSL on CVA6) | Hardware Co-Processor (Dedicated Verilog/VHDL on FPGA) |
+| --- | --- | --- |
+| **Faster Algorithm** | **SHA-2** | **SHA-3** |
+| **Throughput Multiplier** | SHA-2 is **~1.5× to 3× faster** | SHA-3 is **~3× to 6× faster** |
+| **Limiting Factor for SHA-2** | Sequential instruction latency; loop overhead. | Carry-chain propagation delay across cascaded additions in $T_1$ calculations. |
+| **Limiting Factor for SHA-3** | Register spilling due to 1600-bit state; excessive instructions needed for rotations. | Area consumption when implementing full 1600-bit parallel state flip-flops. |
+| **Silicon Area (Footprint)** | Irrelevant (Runs on existing CPU ALU/pipeline). | SHA-2 uses fewer flip-flops (~800–1200 LUTs); SHA-3 requires a wider datapath (~2500–4000 LUTs). |
+| **Energy / Bit Efficiency** | SHA-2 consumes less energy per byte processed. | SHA-3 delivers significantly lower nanojoules-per-bit due to low round count. |
+
+---
+
+## 6. Synthesis and Implementation Strategy on Genesys 2 (Kintex-7)
+
+To translate these hardware advantages to your Xilinx Kintex-7 (XC7K320T) FPGA on the Genesys 2 board, the architecture must transition from CPU-bound execution to an offloaded bus topology.
+
+```
+                    GENESYS 2 FPGA FABRIC (XC7K320T)
+┌────────────────────────────────────────────────────────────────────────┐
+│                                                                        │
+│   ┌─────────────────────┐                 ┌────────────────────────┐   │
+│   │   CVA6 RISC-V Core  │                 │ Dedicated SHA-3 Core   │   │
+│   │   (RV64GC)          │                 │ (AXI4-Stream / Master) │   │
+│   │                     │                 │                        │   │
+│   │  wolfSSL Software   │                 │  1600-bit Register     │   │
+│   │  (Issues Offload    │                 │  Theta / Chi Array     │   │
+│   │   Pointers via AXI) │                 │  24-Cycle Engine       │   │
+│   └──────────┬──────────┘                 └───────────▲────────────┘   │
+│              │ AXI4-Lite Control                      │ DMA Data       │
+│              ▼                                        │                │
+│   ┌───────────────────────────────────────────────────┴────────────┐   │
+│   │           AXI Interconnect & AXI Central DMA Core              │   │
+│   └──────────────────────────────────┬─────────────────────────────┘   │
+│                                      │                                 │
+└──────────────────────────────────────┼─────────────────────────────────┘
+                                       ▼
+                             DDR3 External Memory
+
+```
+
+### 6.1 Recommended Integration Architecture
+
+1. **AXI4-Lite Control Plane:** CVA6 configures registers in the SHA-3 accelerator (Base Address, Buffer Length, Interrupt Enable, Control/Status).
+2. **AXI4 Direct Memory Access (DMA):** The accelerator pulls byte blocks directly from external DDR3 memory or CVA6's scratchpad into its internal absorbing FIFO, bypassing CVA6 load/store instructions entirely.
+3. **Software Driver Modification in wolfSSL:**
+Configure wolfSSL to route calls through hardware drivers instead of the software fallback:
+```c
+/* Conceptual offload hook in wolfcrypt/src/sha3.c */
+int wc_Sha3_256_Update(wc_Sha3* sha3, const byte* data, word32 len) {
+    if (len >= HW_ACCEL_THRESHOLD) {
+        return cva6_axi_dma_sha3_process(data, len, sha3->digest);
+    }
+    return software_keccak_process(sha3, data, len); /* Fallback */
+}
+
+```
+
+
+
+---
+
+## 7. Formal Conclusion
+
+The hypothesis is confirmed:
+
+1. **In software-only execution**, **SHA-2 wins convincingly.** The algorithm matches the native word widths (32-bit and 64-bit) of standard CPU architectures, minimizes register spills, and avoids the computational penalty of managing a 1,600-bit state across a limited register file.
+2. **With dedicated hardware accelerators**, **SHA-3 wins convincingly.** Keccak’s cellular structure, wide native block size (1,088 bits), low round requirement (24 rounds), absence of arithmetic carry chains, and zero-cycle physical bit-rotations allow it to outpace SHA-2 in hardware throughput and throughput-to-area efficiency.

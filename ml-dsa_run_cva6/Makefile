@@ -17,6 +17,9 @@ endif
 # Path to wolfSSL directory (override with: make WOLFSSL_ROOT=/path/to/wolfssl)
 WOLFSSL_ROOT ?= ./wolfssl
 
+# Enable XKCP comparison (1 = enabled, 0 = disabled)
+ENABLE_XKCP  ?= 1
+
 # Compilation flags
 CFLAGS := \
 	$(ARCH_FLAGS) \
@@ -30,6 +33,7 @@ CFLAGS := \
 	-I. \
 	-I$(WOLFSSL_ROOT) \
 	-I$(WOLFSSL_ROOT)/wolfcrypt \
+	-Ixkcp \
 	-I/usr/include/newlib
 
 # Benchmark parameters (override on command line if desired)
@@ -44,6 +48,13 @@ CFLAGS += -DBENCH_PAYLOAD_SIZE=$(BENCH_PAYLOAD_SIZE) \
           -DITERATIONS=$(ITERATIONS) \
           -DCPU_FREQ_MHZ=$(CPU_FREQ_MHZ) \
           -DUSE_MCYCLE=$(USE_MCYCLE)
+
+ifeq ($(ENABLE_XKCP),1)
+    CFLAGS += -DENABLE_XKCP=1
+    XKCP_SRCS := xkcp/xkcp_fips202.c
+else
+    XKCP_SRCS :=
+endif
 
 # Source files
 APP_SRCS := main.c
@@ -62,10 +73,15 @@ ifeq ($(strip $(CROSS_COMPILE)),)
     ARCH_FLAGS :=
     BSP_SRCS   :=
     LDFLAGS    :=
+    WOLFCRYPT_ASM_SRCS :=
 else
     # CVA6 Baremetal RISC-V build
     BSP_SRCS   := startup.s baremetal_lib.c
     LDFLAGS    := -T link.ld -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-Map=$(TARGET).map
+    WOLFCRYPT_ASM_SRCS := \
+	$(WOLFSSL_ROOT)/wolfcrypt/src/port/riscv64/riscv-64-sha256-asm.S \
+	$(WOLFSSL_ROOT)/wolfcrypt/src/port/riscv64/riscv-64-sha512-asm.S \
+	$(WOLFSSL_ROOT)/wolfcrypt/src/port/riscv64/riscv-64-sha3-asm.S
 endif
 
 BUILD_DIR := build
@@ -73,7 +89,7 @@ TARGET    := $(BUILD_DIR)/hash_bench.elf
 DISASM    := $(BUILD_DIR)/hash_bench.dump
 BIN       := $(BUILD_DIR)/hash_bench.bin
 
-ALL_SRCS := $(APP_SRCS) $(WOLFCRYPT_SRCS) $(BSP_SRCS)
+ALL_SRCS := $(APP_SRCS) $(WOLFCRYPT_SRCS) $(WOLFCRYPT_ASM_SRCS) $(XKCP_SRCS) $(BSP_SRCS)
 
 .PHONY: all elf bin dump clean help host run_host
 

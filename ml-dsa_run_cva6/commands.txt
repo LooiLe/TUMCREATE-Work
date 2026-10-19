@@ -14,6 +14,14 @@ make clean && make BENCH_PAYLOAD_SIZE=16384 ITERATIONS=20
 
 # 4. Host Simulation / Verification (Run directly on PC / WSL x86)
 make run_host
-# Or manually:
-# make clean && make CROSS_COMPILE= && ./build/hash_bench.elf
+
+# 5. Compare wolfSSL vs XKCP (Default: ENABLE_XKCP=1)
+# Build and run with both wolfSSL and XKCP side-by-side:
+make run_host
+
+# Run with wolfSSL only (disable XKCP):
+make ENABLE_XKCP=0 run_host
+
+# Cross-compile for CVA6 with both wolfSSL and XKCP:
+# make clean && make BENCH_PAYLOAD_SIZE=4096 ENABLE_XKCP=1
 

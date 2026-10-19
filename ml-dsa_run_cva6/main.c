@@ -15,6 +15,9 @@
 #ifdef WOLFSSL_SHA3
 #include <wolfssl/wolfcrypt/sha3.h>
 #endif
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+#include "xkcp_fips202.h"
+#endif
 
 /* =========================================================================
  * Benchmark Configuration
@@ -139,6 +142,14 @@ typedef enum {
     ALGO_SHAKE_128,
     ALGO_SHAKE_256,
 #endif
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    ALGO_XKCP_SHA3_224,
+    ALGO_XKCP_SHA3_256,
+    ALGO_XKCP_SHA3_384,
+    ALGO_XKCP_SHA3_512,
+    ALGO_XKCP_SHAKE_128,
+    ALGO_XKCP_SHAKE_256,
+#endif
 } HashAlgoId;
 
 typedef struct {
@@ -154,6 +165,9 @@ typedef union {
 #ifdef WOLFSSL_SHA3
     wc_Sha3   sha3;
     wc_Shake  shake;
+#endif
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    xkcp_ctx  xkcp;
 #endif
 } HashCtx;
 
@@ -257,6 +271,37 @@ static int compute_hash(HashCtx *ctx,
             *outlen = 64;
             break;
 #endif
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+        case ALGO_XKCP_SHA3_224:
+            xkcp_sha3_224(out, in, inlen);
+            *outlen = 28;
+            break;
+
+        case ALGO_XKCP_SHA3_256:
+            xkcp_sha3_256(out, in, inlen);
+            *outlen = 32;
+            break;
+
+        case ALGO_XKCP_SHA3_384:
+            xkcp_sha3_384(out, in, inlen);
+            *outlen = 48;
+            break;
+
+        case ALGO_XKCP_SHA3_512:
+            xkcp_sha3_512(out, in, inlen);
+            *outlen = 64;
+            break;
+
+        case ALGO_XKCP_SHAKE_128:
+            xkcp_shake128(out, 32, in, inlen);
+            *outlen = 32;
+            break;
+
+        case ALGO_XKCP_SHAKE_256:
+            xkcp_shake256(out, 64, in, inlen);
+            *outlen = 64;
+            break;
+#endif
         default:
             return -1;
     }
@@ -282,12 +327,30 @@ static const HashAlgoDesc HASH_ALGOS[] = {
     {"SHA2-512/256",  ALGO_SHA2_512_256, 32},
 #endif
 #ifdef WOLFSSL_SHA3
-    {"SHA3-224",      ALGO_SHA3_224,     28},
-    {"SHA3-256",      ALGO_SHA3_256,     32},
-    {"SHA3-384",      ALGO_SHA3_384,     48},
-    {"SHA3-512",      ALGO_SHA3_512,     64},
-    {"SHAKE-128",     ALGO_SHAKE_128,    32},
-    {"SHAKE-256",     ALGO_SHAKE_256,    64},
+    {"SHA3-224 (wolfSSL)",  ALGO_SHA3_224,        28},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHA3-224 (XKCP)",     ALGO_XKCP_SHA3_224,   28},
+#endif
+    {"SHA3-256 (wolfSSL)",  ALGO_SHA3_256,        32},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHA3-256 (XKCP)",     ALGO_XKCP_SHA3_256,   32},
+#endif
+    {"SHA3-384 (wolfSSL)",  ALGO_SHA3_384,        48},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHA3-384 (XKCP)",     ALGO_XKCP_SHA3_384,   48},
+#endif
+    {"SHA3-512 (wolfSSL)",  ALGO_SHA3_512,        64},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHA3-512 (XKCP)",     ALGO_XKCP_SHA3_512,   64},
+#endif
+    {"SHAKE-128 (wolfSSL)", ALGO_SHAKE_128,       32},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHAKE-128 (XKCP)",    ALGO_XKCP_SHAKE_128,  32},
+#endif
+    {"SHAKE-256 (wolfSSL)", ALGO_SHAKE_256,       64},
+#if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
+    {"SHAKE-256 (XKCP)",    ALGO_XKCP_SHAKE_256,  64},
+#endif
 #endif
 };
 
@@ -315,7 +378,7 @@ typedef struct {
     uint64_t cyc_per_byte_x100; /* Cycles/Byte * 100 (e.g. 1542 = 15.42 CPB) */
 } BenchmarkResult;
 
-#define MAX_BENCHMARK_ALGOS 16
+#define MAX_BENCHMARK_ALGOS 32
 volatile BenchmarkResult g_results[MAX_BENCHMARK_ALGOS];
 volatile uint32_t g_results_count = 0;
 volatile uint32_t g_benchmark_done = 0;
@@ -340,13 +403,13 @@ int main(void)
 
 #if !defined(__riscv)
     printf("\n=========================================================================================================\n");
-    printf("               HOST (x86_64) HASH ALGORITHM BENCHMARK (wolfCrypt)\n");
+    printf("               HOST (x86_64) HASH ALGORITHM BENCHMARK (wolfSSL vs XKCP)\n");
     printf("=========================================================================================================\n");
     printf(" Payload: %d bytes  |  Iterations: %d\n", BENCH_PAYLOAD_SIZE, ITERATIONS);
     printf("---------------------------------------------------------------------------------------------------------\n");
-    printf("%-14s | %6s | %11s | %11s | %9s\n",
+    printf("%-20s | %6s | %11s | %11s | %9s\n",
            "Algorithm", "Digest", "Min Cycles", "Med Cycles", "Cyc/Byte");
-    printf("---------------+--------+-------------+-------------+-----------\n");
+    printf("---------------------+--------+-------------+-------------+-----------\n");
 #endif
 
     size_t total_algos = sizeof(HASH_ALGOS) / sizeof(HASH_ALGOS[0]);
@@ -393,7 +456,7 @@ int main(void)
 
 #if !defined(__riscv)
         double cyc_per_byte = (double)med_cyc / (double)BENCH_PAYLOAD_SIZE;
-        printf("%-14s | %4zu B | %11llu | %11llu | %9.2f\n",
+        printf("%-20s | %4zu B | %11llu | %11llu | %9.2f\n",
                desc->name,
                desc->digest_len,
                (unsigned long long)min_cyc,
