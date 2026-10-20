@@ -1,27 +1,68 @@
-# Example: customize payload size, iterations, and core frequency (e.g. 100 MHz)
-make WOLFSSL_ROOT=/path/to/wolfssl BENCH_PAYLOAD_SIZE=4096 ITERATIONS=100 CPU_FREQ_MHZ=100.0
+================================================================================
+CVA6 / GENESYS 2 EXPERIMENT RUN GUIDE
+================================================================================
 
-git clone https://github.com/wolfSSL/wolfssl.git wolfssl
+[STEP 1] START VIVADO & FLASH BITSTREAM
+--------------------------------------------------------------------------------
+# In your terminal (on the machine connected to Genesys 2):
+source /opt/Xilinx/2025.2.1/Vivado/settings64.sh
+vivado -mode tcl
+# (or simply: vivado to open GUI)
 
-# 1. Build Experiment 1 (Main 4 KB)
+# Inside Vivado Tcl:
+open_hw_manager
+connect_hw_server
+open_hw_target
+set_property PROGRAM.FILE {~/Downloads/ariane_xilinx.bit} [get_hw_devices xc7k325t_0]
+program_hw_devices [get_hw_devices xc7k325t_0]
+exit
+
+*(Alternatively, open Vivado GUI: Hardware Manager -> Auto Connect -> Program Device -> ~/Downloads/ariane_xilinx.bit)*
+
+
+[STEP 2] BUILD THE BENCHMARK (in ml-dsa_run_cva6/)
+--------------------------------------------------------------------------------
+# 4 KB Main Payload (Default):
 make clean && make BENCH_PAYLOAD_SIZE=4096
 
-# 2. Build Experiment 2 (Small 64 B header)
+# 64 B Header:
 make clean && make BENCH_PAYLOAD_SIZE=64
 
-# 3. Build Experiment 3 (16 KB firmware binary)
+# 16 KB Large Binary:
 make clean && make BENCH_PAYLOAD_SIZE=16384 ITERATIONS=20
 
-# 4. Host Simulation / Verification (Run directly on PC / WSL x86)
-make run_host
 
-# 5. Compare wolfSSL vs XKCP (Default: ENABLE_XKCP=1)
-# Build and run with both wolfSSL and XKCP side-by-side:
-make run_host
+[STEP 3] START OPENOCD (Terminal 1)
+--------------------------------------------------------------------------------
+openocd -f interface/ftdi/digilent_jtag_smt2.cfg -f target/cva6.cfg
+# (or: openocd -f openocd.cfg)
+# Leaves port 3333 listening for GDB
 
-# Run with wolfSSL only (disable XKCP):
+
+[STEP 4] RUN GDB (Terminal 2)
+--------------------------------------------------------------------------------
+gdb-multiarch hash_bench.elf
+# (or: riscv64-unknown-elf-gdb build/hash_bench.elf)
+
+# Inside GDB:
+target remote :3333
+load
+continue
+
+# When benchmark completes (spins in while(1)):
+# Press Ctrl+C in GDB, then inspect results:
+set print pretty on
+print g_results
+
+# Or print individual entries:
+print g_results[0]
+print g_results[1]
+print g_results[2]
+
+
+================================================================================
+HOST VERIFICATION (Run on x86 PC / WSL without FPGA)
+================================================================================
+make run_host
+# Run without XKCP:
 make ENABLE_XKCP=0 run_host
-
-# Cross-compile for CVA6 with both wolfSSL and XKCP:
-# make clean && make BENCH_PAYLOAD_SIZE=4096 ENABLE_XKCP=1
-

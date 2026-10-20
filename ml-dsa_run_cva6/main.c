@@ -23,11 +23,11 @@
  * Benchmark Configuration
  * ========================================================================= */
 #ifndef ITERATIONS
-#define ITERATIONS          50      /* Number of benchmark runs per algorithm */
+#define ITERATIONS          1      /* Number of benchmark runs per algorithm */
 #endif
 
 #ifndef WARMUP_ITERATIONS
-#define WARMUP_ITERATIONS   5       /* Warm-up runs to prime I-cache and D-cache */
+#define WARMUP_ITERATIONS   0       /* Warm-up runs to prime I-cache and D-cache */
 #endif
 
 #ifndef BENCH_PAYLOAD_SIZE
@@ -124,31 +124,31 @@ static inline uint64_t read_instructions(void)
  * Hash Algorithms & Unified Context
  * ========================================================================= */
 typedef enum {
-    ALGO_SHA2_224,
-    ALGO_SHA2_256,
-    ALGO_SHA2_384,
-    ALGO_SHA2_512,
+    ALGO_SHA2_224        = 0,
+    ALGO_SHA2_256        = 1,
+    ALGO_SHA2_384        = 2,
+    ALGO_SHA2_512        = 3,
 #if defined(WOLFSSL_SHA512_224)
-    ALGO_SHA2_512_224,
+    ALGO_SHA2_512_224    = 4,
 #endif
 #if defined(WOLFSSL_SHA512_256)
-    ALGO_SHA2_512_256,
+    ALGO_SHA2_512_256    = 5,
 #endif
 #ifdef WOLFSSL_SHA3
-    ALGO_SHA3_224,
-    ALGO_SHA3_256,
-    ALGO_SHA3_384,
-    ALGO_SHA3_512,
-    ALGO_SHAKE_128,
-    ALGO_SHAKE_256,
+    ALGO_SHA3_224        = 6,
+    ALGO_SHA3_256        = 7,
+    ALGO_SHA3_384        = 8,
+    ALGO_SHA3_512        = 9,
+    ALGO_SHAKE_128       = 10,
+    ALGO_SHAKE_256       = 11,
 #endif
 #if defined(ENABLE_XKCP) && (ENABLE_XKCP == 1)
-    ALGO_XKCP_SHA3_224,
-    ALGO_XKCP_SHA3_256,
-    ALGO_XKCP_SHA3_384,
-    ALGO_XKCP_SHA3_512,
-    ALGO_XKCP_SHAKE_128,
-    ALGO_XKCP_SHAKE_256,
+    ALGO_XKCP_SHA3_224   = 12,
+    ALGO_XKCP_SHA3_256   = 13,
+    ALGO_XKCP_SHA3_384   = 14,
+    ALGO_XKCP_SHA3_512   = 15,
+    ALGO_XKCP_SHAKE_128  = 16,
+    ALGO_XKCP_SHAKE_256  = 17,
 #endif
 } HashAlgoId;
 
@@ -417,7 +417,14 @@ int main(void)
     for (size_t a = 0; a < total_algos; a++) {
         const HashAlgoDesc *desc = &HASH_ALGOS[a];
 
-        /* Warmup runs */
+#ifdef TARGET_ALGO_ID
+        /* If a specific algorithm ID was requested via Makefile, skip all others */
+        if (desc->id != TARGET_ALGO_ID) {
+            continue;
+        }
+#endif
+
+        /* Warmup runs (0 for cold RAM-to-register load evaluation) */
         for (int w = 0; w < WARMUP_ITERATIONS; w++) {
             compute_hash(&ctx, digest, &digest_len, message, sizeof(message), desc->id);
         }
@@ -444,14 +451,15 @@ int main(void)
         uint64_t med_cyc = cycle_samples[ITERATIONS / 2];
         uint64_t med_ins = inst_samples[ITERATIONS / 2];
 
-        /* Store into global array for JTAG / GDB inspection */
-        if (a < MAX_BENCHMARK_ALGOS) {
-            g_results[a].name = desc->name;
-            g_results[a].digest_len = desc->digest_len;
-            g_results[a].min_cycles = min_cyc;
-            g_results[a].med_cycles = med_cyc;
-            g_results[a].instructions = med_ins;
-            g_results[a].cyc_per_byte_x100 = (med_cyc * 100) / BENCH_PAYLOAD_SIZE;
+        /* Store into global array sequentially (results will always be at g_results[0] for single-algo runs) */
+        if (g_results_count < MAX_BENCHMARK_ALGOS) {
+            g_results[g_results_count].name = desc->name;
+            g_results[g_results_count].digest_len = desc->digest_len;
+            g_results[g_results_count].min_cycles = min_cyc;
+            g_results[g_results_count].med_cycles = med_cyc;
+            g_results[g_results_count].instructions = med_ins;
+            g_results[g_results_count].cyc_per_byte_x100 = (med_cyc * 100) / BENCH_PAYLOAD_SIZE;
+            g_results_count++;
         }
 
 #if !defined(__riscv)
@@ -465,15 +473,16 @@ int main(void)
 #endif
     }
 
-    g_results_count = (uint32_t)total_algos;
-
     wolfCrypt_Cleanup();
 
 #if defined(__riscv)
     /* Signal completion to JTAG / GDB */
     g_benchmark_done = 1;
 
-    /* Halt in infinite loop */
+    /* Halt hook: set breakpoint on this line in GDB (b benchmark_done) to break automatically */
+    __asm__ volatile ("nop");
+
+    /* Infinite loop after completion */
     while (1) {
         __asm__ volatile ("nop");
     }
