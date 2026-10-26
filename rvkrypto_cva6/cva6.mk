@@ -3,7 +3,7 @@
 # Matches ml-dsa_run_cva6/Makefile options and benchmark harness structure
 # ==============================================================================
 
-CROSS ?= riscv64-unknown-elf-
+CROSS ?= riscv-none-elf-
 CC      := $(CROSS)gcc
 OBJDUMP := $(CROSS)objdump
 OBJCOPY := $(CROSS)objcopy
@@ -69,6 +69,10 @@ OBJS := $(BENCH_SRCS:.c=.o)
 CFLAGS := \
 	-march=$(ARCH) \
 	-mabi=$(ABI) \
+	-mcmodel=medany \
+	-fno-pic \
+	-ffreestanding \
+	-fno-builtin \
 	-O2 \
 	-g3 \
 	-std=c99 \
@@ -90,7 +94,11 @@ endif
 
 LDFLAGS := \
 	-march=$(ARCH) \
-	-mabi=$(ABI)
+	-mabi=$(ABI) \
+	-mcmodel=medany \
+	-nostdlib \
+	-nostartfiles \
+	-T linker.ld
 
 .PHONY: all elf bin dump clean list_algos help run_host
 
@@ -98,9 +106,10 @@ all: elf dump bin
 
 elf: $(TARGET).elf
 
-$(TARGET).elf: $(OBJS)
+$(TARGET).elf: $(OBJS) start.S linker.ld
 	@echo "[LD] $@"
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) \
+		start.S $(OBJS) -lc -lgcc -o $@
 	$(SIZE) $@
 
 bin: $(TARGET).bin

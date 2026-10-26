@@ -51,12 +51,12 @@ Follow the exact same workflow as documented in `ml-dsa_run_cva6/HOWTO_RUN.md`:
 ### Terminal 1: OpenOCD
 ```bash
 openocd -f interface/ftdi/digilent_jtag_smt2.cfg -f target/cva6.cfg
-# (or: openocd -f openocd.cfg)
+# (or: openocd -f ariane.cfg)
 ```
 
 ### Terminal 2: GDB
 ```gdb
-riscv64-unknown-elf-gdb hash_bench.elf
+riscv-none-elf-gdb hash_bench.elf
 
 (gdb) target remote :3333
 
