@@ -33,6 +33,10 @@ else ifeq ($(ALGO),SHA2_384)
     ALGO_ID := 2
 else ifeq ($(ALGO),SHA2_512)
     ALGO_ID := 3
+else ifeq ($(ALGO),SHA2_512_224)
+    ALGO_ID := 4
+else ifeq ($(ALGO),SHA2_512_256)
+    ALGO_ID := 5
 else ifeq ($(ALGO),SHA3_224)
     ALGO_ID := 6
 else ifeq ($(ALGO),SHA3_256)
@@ -147,8 +151,10 @@ list_algos:
 	@echo "  ID  0 : SHA2-224        (ALGO=SHA2_224) - accelerated via Zknh"
 	@echo "  ID  1 : SHA2-256        (ALGO=SHA2_256) - accelerated via Zknh"
 	@echo "  ID  2 : SHA2-384        (ALGO=SHA2_384) - accelerated via Zknh"
-	@echo "  ID  3 : SHA2-512        (ALGO=SHA2_512) - accelerated via Zknh"
-	@echo "  ID  6 : SHA3-224        (ALGO=SHA3_224) - accelerated via Zbkb"
+	@echo "  ID  3 : SHA2-512        (ALGO=SHA2_512)     - accelerated via Zknh"
+	@echo "  ID  4 : SHA2-512/224    (ALGO=SHA2_512_224) - accelerated via Zknh"
+	@echo "  ID  5 : SHA2-512/256    (ALGO=SHA2_512_256) - accelerated via Zknh"
+	@echo "  ID  6 : SHA3-224        (ALGO=SHA3_224)     - accelerated via Zbkb"
 	@echo "  ID  7 : SHA3-256        (ALGO=SHA3_256) - accelerated via Zbkb"
 	@echo "  ID  8 : SHA3-384        (ALGO=SHA3_384) - accelerated via Zbkb"
 	@echo "  ID  9 : SHA3-512        (ALGO=SHA3_512) - accelerated via Zbkb"

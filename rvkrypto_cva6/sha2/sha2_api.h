@@ -28,6 +28,12 @@ void sha2_384(uint8_t *md, const void *m, size_t mlen);
 //	SHA2-512: Compute 64-byte hash to "md" from "in" which has "mlen" bytes.
 void sha2_512(uint8_t *md, const void *m, size_t mlen);
 
+//	SHA2-512/224: Compute 28-byte hash to "md" from "in" which has "mlen" bytes.
+void sha2_512_224(uint8_t *md, const void *m, size_t mlen);
+
+//	SHA2-512/256: Compute 32-byte hash to "md" from "in" which has "mlen" bytes.
+void sha2_512_256(uint8_t *md, const void *m, size_t mlen);
+
 //	=== Compression Functions ===
 
 //	function pointer to the compression function used by the test wrappers

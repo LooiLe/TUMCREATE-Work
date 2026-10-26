@@ -115,6 +115,8 @@ typedef enum {
     ALGO_SHA2_256        = 1,
     ALGO_SHA2_384        = 2,
     ALGO_SHA2_512        = 3,
+    ALGO_SHA2_512_224    = 4,
+    ALGO_SHA2_512_256    = 5,
     ALGO_SHA3_224        = 6,
     ALGO_SHA3_256        = 7,
     ALGO_SHA3_384        = 8,
@@ -131,17 +133,19 @@ typedef struct {
 } HashAlgoDesc;
 
 static const HashAlgoDesc HASH_ALGOS[] = {
-    {"SHA2-224 (rvk-Zknh)",     ALGO_SHA2_224,     28},
-    {"SHA2-256 (rvk-Zknh)",     ALGO_SHA2_256,     32},
-    {"SHA2-384 (rvk-Zknh)",     ALGO_SHA2_384,     48},
-    {"SHA2-512 (rvk-Zknh)",     ALGO_SHA2_512,     64},
-    {"SHA3-224 (rvk-Zbkb)",     ALGO_SHA3_224,     28},
-    {"SHA3-256 (rvk-Zbkb)",     ALGO_SHA3_256,     32},
-    {"SHA3-384 (rvk-Zbkb)",     ALGO_SHA3_384,     48},
-    {"SHA3-512 (rvk-Zbkb)",     ALGO_SHA3_512,     64},
-    {"SHAKE-128 (rvk-Zbkb)",    ALGO_SHAKE_128,    32},
-    {"SHAKE-256 (rvk-Zbkb)",    ALGO_SHAKE_256,    64},
-    {"SM3-256 (rvk-Zksh)",      ALGO_SM3_256,      32},
+    {"SHA2-224 (rvk-Zknh)",         ALGO_SHA2_224,         28},
+    {"SHA2-256 (rvk-Zknh)",         ALGO_SHA2_256,         32},
+    {"SHA2-384 (rvk-Zknh)",         ALGO_SHA2_384,         48},
+    {"SHA2-512 (rvk-Zknh)",         ALGO_SHA2_512,         64},
+    {"SHA2-512/224 (rvk-Zknh)",     ALGO_SHA2_512_224,     28},
+    {"SHA2-512/256 (rvk-Zknh)",     ALGO_SHA2_512_256,     32},
+    {"SHA3-224 (rvk-Zbkb)",         ALGO_SHA3_224,         28},
+    {"SHA3-256 (rvk-Zbkb)",         ALGO_SHA3_256,         32},
+    {"SHA3-384 (rvk-Zbkb)",         ALGO_SHA3_384,         48},
+    {"SHA3-512 (rvk-Zbkb)",         ALGO_SHA3_512,         64},
+    {"SHAKE-128 (rvk-Zbkb)",        ALGO_SHAKE_128,        32},
+    {"SHAKE-256 (rvk-Zbkb)",        ALGO_SHAKE_256,        64},
+    {"SM3-256 (rvk-Zksh)",          ALGO_SM3_256,          32},
 };
 
 /* Unified compute function using rvkrypto hardware-accelerated functions */
@@ -172,6 +176,16 @@ static int compute_hash(uint8_t *out,
         case ALGO_SHA2_512:
             sha2_512(out, in, inlen);
             *outlen = 64;
+            break;
+
+        case ALGO_SHA2_512_224:
+            sha2_512_224(out, in, inlen);
+            *outlen = 28;
+            break;
+
+        case ALGO_SHA2_512_256:
+            sha2_512_256(out, in, inlen);
+            *outlen = 32;
             break;
 
         case ALGO_SHA3_224:

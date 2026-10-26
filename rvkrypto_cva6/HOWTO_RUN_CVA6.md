@@ -12,6 +12,8 @@ This benchmark harness is structured **identically to the wolfSSL / XKCP benchma
 | **SHA2-256** | `ALGO=SHA2_256` (ID 1) | `Zknh` (`sha256sig0`, `sha256sum0`, etc.) |
 | **SHA2-384** | `ALGO=SHA2_384` (ID 2) | `Zknh` (`sha512sig0`, `sha512sum0`, etc.) |
 | **SHA2-512** | `ALGO=SHA2_512` (ID 3) | `Zknh` (`sha512sig0`, `sha512sum0`, etc.) |
+| **SHA2-512/224** | `ALGO=SHA2_512_224` (ID 4) | `Zknh` (`sha512sig0`, `sha512sum0`, etc.) |
+| **SHA2-512/256** | `ALGO=SHA2_512_256` (ID 5) | `Zknh` (`sha512sig0`, `sha512sum0`, etc.) |
 | **SHA3-224** | `ALGO=SHA3_224` (ID 6) | `Zbkb` (64-bit Keccak bit rotations) |
 | **SHA3-256** | `ALGO=SHA3_256` (ID 7) | `Zbkb` (64-bit Keccak bit rotations) |
 | **SHA3-384** | `ALGO=SHA3_384` (ID 8) | `Zbkb` (64-bit Keccak bit rotations) |

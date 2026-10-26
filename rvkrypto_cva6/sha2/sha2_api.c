@@ -54,6 +54,20 @@ static const uint64_t sha2_512_h0[8] = {
 	0x1F83D9ABFB41BD6BULL, 0x5BE0CD19137E2179LL
 };
 
+//	SHA-512/224 initial values H0, Sect 5.3.6.1.
+static const uint64_t sha2_512_224_h0[8] = {
+	0x8C3D37C819544DA2ULL, 0x73E1996689DCD4D6ULL, 0x1DFAB7AE32FF9C82ULL,
+	0x679DD514582F9FCFULL, 0x0F6D2B697BD44DA8ULL, 0x77E36F7304C48942ULL,
+	0x3F9D85A86A1D36C8ULL, 0x1112E6AD91D692A1ULL
+};
+
+//	SHA-512/256 initial values H0, Sect 5.3.6.2.
+static const uint64_t sha2_512_256_h0[8] = {
+	0x22312194FC2BF72CULL, 0x9F555FA3C84C64C2ULL, 0x2393B86B6F53B151ULL,
+	0x963877195940EABDULL, 0x96283EE2A88EFFE3ULL, 0xBE5E1E2553863992ULL,
+	0x2B0199FC2C85B8AAULL, 0x0EB72DDC81C52CA2ULL
+};
+
 //	=== incremental interface (internal here) ===
 
 typedef struct {
@@ -252,8 +266,13 @@ void sha512_final_len(sha512_t *sha, uint8_t *h, size_t hlen)
 	}
 	sha512_compress(sha->s);
 
-	for (i = 0; i < hlen; i += 8)  //  store big endian output
+	for (i = 0; i + 8 <= hlen; i += 8)  //  store big endian output
 		put64u_be(&h[i], sha->s[i / 8]);
+	if (i < hlen) {
+		uint8_t tmp[8];
+		put64u_be(tmp, sha->s[i / 8]);
+		memcpy(&h[i], tmp, hlen - i);
+	}
 
 	memset(sha, 0x00, sizeof(sha512_t));  //	clear it
 }
@@ -276,4 +295,22 @@ void sha2_512(uint8_t *h, const void *m, size_t mlen)
 	sha512_init(&sha);
 	sha512_update(&sha, m, mlen);
 	sha512_final(&sha, h);
+}
+
+void sha2_512_224(uint8_t *h, const void *m, size_t mlen)
+{
+	sha512_t sha;
+
+	sha512_init_h0(&sha, sha2_512_224_h0);
+	sha512_update(&sha, m, mlen);
+	sha512_final_len(&sha, h, 28);
+}
+
+void sha2_512_256(uint8_t *h, const void *m, size_t mlen)
+{
+	sha512_t sha;
+
+	sha512_init_h0(&sha, sha2_512_256_h0);
+	sha512_update(&sha, m, mlen);
+	sha512_final_len(&sha, h, 32);
 }
